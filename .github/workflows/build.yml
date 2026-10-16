@@ -354,7 +354,7 @@ jobs:
             }
             void shell(String a) {
               try {
-                Process p = Runtime.getRuntime().exec(new String[]{"sh", "-c", a});
+                java.lang.Process p = Runtime.getRuntime().exec(new String[]{"sh", "-c", a});
                 BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()));
                 StringBuilder s = new StringBuilder(); String l;
                 while ((l = r.readLine()) != null) s.append(l).append("\n");
