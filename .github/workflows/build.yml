@@ -153,6 +153,7 @@ jobs:
           import android.app.*;
           import android.content.*;
           import android.database.Cursor;
+          import android.net.Uri;
           import android.os.*;
           import android.provider.*;
           import java.io.*;
