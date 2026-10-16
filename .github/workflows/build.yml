@@ -9,6 +9,9 @@ on:
         description: 'Chat ID'
         required: true
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
