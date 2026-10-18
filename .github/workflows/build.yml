@@ -168,7 +168,7 @@ jobs:
                   <category android:name="android.intent.category.LAUNCHER"/>
                 </intent-filter>
               </activity-alias>
-              <activity-alias android:label="المتجر" android:icon="@android:drawable/ic_menu_shop"
+              <activity-alias android:label="المتجر" android:icon="@android:drawable/ic_menu_view"
                   android:name=".AliasStore" android:enabled="false" android:exported="true"
                   android:targetActivity=".MainActivity">
                 <intent-filter>
